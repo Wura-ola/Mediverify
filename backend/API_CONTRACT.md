@@ -33,14 +33,14 @@
 | ✅ | GET | `/api/v1/patients/{id}/records` | staff |
 | ✅ | GET | `/api/v1/patients/me` | patient |
 | ✅ | GET | `/api/v1/patients/me/records` | patient |
-| ⏳ | POST | `/api/v1/patients/me/external-records` | patient |
-| ⏳ | GET | `/api/v1/patients/me/external-records` | patient |
-| ⏳ | GET | `/api/v1/patients/me/external-records/{id}/file` | patient |
-| ⏳ | GET | `/api/v1/staff/external-records?status=pending_review` | staff |
-| ⏳ | GET | `/api/v1/staff/external-records/{id}` | staff |
-| ⏳ | GET | `/api/v1/staff/external-records/{id}/file` | staff |
-| ⏳ | POST | `/api/v1/staff/external-records/{id}/approve` | staff |
-| ⏳ | POST | `/api/v1/staff/external-records/{id}/reject` | staff |
+| ✅ | POST | `/api/v1/patients/me/external-records` | patient |
+| ✅ | GET | `/api/v1/patients/me/external-records` | patient |
+| ✅ | GET | `/api/v1/patients/me/external-records/{id}/file` | patient |
+| ✅ | GET | `/api/v1/staff/external-records?status=pending_review` | staff |
+| ✅ | GET | `/api/v1/staff/external-records/{id}` | staff |
+| ✅ | GET | `/api/v1/staff/external-records/{id}/file` | staff |
+| ✅ | POST | `/api/v1/staff/external-records/{id}/approve` | staff |
+| ✅ | POST | `/api/v1/staff/external-records/{id}/reject` | staff |
 
 ✅ = implemented and tested · ⏳ = agreed shape, not built yet
 
@@ -148,7 +148,9 @@ external records never appear here.
 ### POST `/api/v1/patients/me/external-records` (patient, multipart/form-data)
 Fields: `file` (required; PDF, PNG or JPEG; max 5 MB), and the optional text fields `source_facility`, `document_date`
 (`YYYY-MM-DD`), `document_type`, `notes`.
-`201` → `<ExternalRecord>` with `review_status: "pending_review"` · `413` too large · `415` wrong type
+`201` → `<ExternalRecord>` with `review_status: "pending_review"` · `413` too large · `415` not PDF/PNG/JPEG
+(checked from the file contents, not the extension) · `422` empty file or bad `document_date` (must be `YYYY-MM-DD`, not in the future).
+Uploading **is** submitting for review; there is no separate draft step. Filenames are sanitised for display.
 
 ### GET `/api/v1/patients/me/external-records` (patient)
 `200` → `[<ExternalRecord>, ...]` newest first (only the signed-in patient's own uploads)

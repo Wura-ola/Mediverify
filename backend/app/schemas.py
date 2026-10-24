@@ -95,6 +95,43 @@ class RecordEntryOut(BaseModel):
         return v.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+class ExternalRecordOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    patient_id: uuid.UUID
+    patient_code: str
+    patient_name: str
+    original_filename: str
+    content_type: str
+    size_bytes: int
+    source_facility: str | None
+    document_date: date | None
+    document_type: str | None
+    notes: str | None
+    extraction_status: str
+    review_status: str
+    review_note: str | None
+    reviewed_by: str | None
+    reviewed_at: datetime | None
+    uploaded_at: datetime
+
+    @field_serializer("reviewed_at", "uploaded_at")
+    def utc(self, v: datetime | None):
+        if v is None:
+            return None
+        return v.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+class ReviewBody(BaseModel):
+    review_note: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("review_note", mode="before")
+    @classmethod
+    def optional_blank(cls, v):
+        return _blank_to_none(v)
+
+
 class StaffLogin(BaseModel):
     username: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=1, max_length=200)
