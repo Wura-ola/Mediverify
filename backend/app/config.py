@@ -25,3 +25,16 @@ CORS_ORIGINS = [
     for o in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
     if o.strip()
 ]
+
+
+def _secret(name: str) -> str | None:
+    # Treat unset or still-placeholder values as "not configured".
+    v = os.getenv(name, "").strip()
+    return None if not v or v.startswith("change-me") else v
+
+
+SECRET_KEY = _secret("SECRET_KEY")
+DEMO_STAFF_USERNAME = os.getenv("DEMO_STAFF_USERNAME", "staff").strip()
+DEMO_STAFF_PASSWORD = _secret("DEMO_STAFF_PASSWORD")
+TOKEN_MAX_AGE_SECONDS = 12 * 60 * 60
+STAFF_DISPLAY_NAME = "Demo Staff"
