@@ -3,6 +3,7 @@
 > Prototype for demonstration only. Not for real clinical use. Synthetic data only.
 
 API shapes for the frontend: see [`API_CONTRACT.md`](API_CONTRACT.md). Interactive docs: `{BASE_URL}/docs`.
+Tests: `pip install -r requirements-dev.txt` then `python -m pytest`. See [`TESTING.md`](TESTING.md).
 
 ## Run locally (Windows PowerShell, from `backend/`)
 
