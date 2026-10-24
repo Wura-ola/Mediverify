@@ -13,6 +13,8 @@
 - **IDs:** `id` fields are UUID strings. `patient_code` is the human-facing Patient ID, format `MV-XXXXXXXX`.
 - **Auth (demo-grade, not production):** login returns `access_token`; send it as
   `Authorization: Bearer <access_token>`. Tokens expire after 12 hours.
+  On any `401`, the frontend should clear the stored token and return to the login screen.
+  A patient token on a staff route returns `403`.
 - **Errors:** always `{"detail": "<message>"}` (validation errors: `detail` is a list, FastAPI default).
   `401` not signed in / bad token · `403` wrong role · `404` not found · `413` file too large ·
   `415` file type not allowed · `422` invalid input · `503` database unavailable.
@@ -21,24 +23,24 @@
 
 | Status | Method | Path | Auth |
 |---|---|---|---|
-| ⏳ | GET | `/health` | public |
-| ⏳ | POST | `/api/v1/staff/login` | public |
-| ⏳ | POST | `/api/v1/patient/login` | public |
-| ⏳ | POST | `/api/v1/patients` | staff |
-| ⏳ | GET | `/api/v1/patients?q=` | staff |
-| ⏳ | GET | `/api/v1/patients/{id}` | staff |
-| ⏳ | POST | `/api/v1/patients/{id}/visits` | staff |
-| ⏳ | GET | `/api/v1/patients/{id}/records` | staff |
-| ⏳ | GET | `/api/v1/patients/me` | patient |
-| ⏳ | GET | `/api/v1/patients/me/records` | patient |
-| ⏳ | POST | `/api/v1/patients/me/external-records` | patient |
-| ⏳ | GET | `/api/v1/patients/me/external-records` | patient |
-| ⏳ | GET | `/api/v1/patients/me/external-records/{id}/file` | patient |
-| ⏳ | GET | `/api/v1/staff/external-records?status=pending_review` | staff |
-| ⏳ | GET | `/api/v1/staff/external-records/{id}` | staff |
-| ⏳ | GET | `/api/v1/staff/external-records/{id}/file` | staff |
-| ⏳ | POST | `/api/v1/staff/external-records/{id}/approve` | staff |
-| ⏳ | POST | `/api/v1/staff/external-records/{id}/reject` | staff |
+| ✅ | GET | `/health` | public |
+| ✅ | POST | `/api/v1/staff/login` | public |
+| ✅ | POST | `/api/v1/patient/login` | public |
+| ✅ | POST | `/api/v1/patients` | staff |
+| ✅ | GET | `/api/v1/patients?q=` | staff |
+| ✅ | GET | `/api/v1/patients/{id}` | staff |
+| ✅ | POST | `/api/v1/patients/{id}/visits` | staff |
+| ✅ | GET | `/api/v1/patients/{id}/records` | staff |
+| ✅ | GET | `/api/v1/patients/me` | patient |
+| ✅ | GET | `/api/v1/patients/me/records` | patient |
+| ✅ | POST | `/api/v1/patients/me/external-records` | patient |
+| ✅ | GET | `/api/v1/patients/me/external-records` | patient |
+| ✅ | GET | `/api/v1/patients/me/external-records/{id}/file` | patient |
+| ✅ | GET | `/api/v1/staff/external-records?status=pending_review` | staff |
+| ✅ | GET | `/api/v1/staff/external-records/{id}` | staff |
+| ✅ | GET | `/api/v1/staff/external-records/{id}/file` | staff |
+| ✅ | POST | `/api/v1/staff/external-records/{id}/approve` | staff |
+| ✅ | POST | `/api/v1/staff/external-records/{id}/reject` | staff |
 
 ✅ = implemented and tested · ⏳ = agreed shape, not built yet
 
@@ -51,7 +53,7 @@
 ### POST `/api/v1/staff/login`
 Request: `{"username": "staff", "password": "..."}` (demo credentials shared out-of-band, never in git)
 `200` → `{"access_token": "<token>", "token_type": "bearer", "role": "staff", "display_name": "Demo Staff"}`
-`401` → wrong credentials
+`401` → `{"detail": "Username or password is incorrect"}` · `503` if demo login is not configured on the server
 
 ### POST `/api/v1/patient/login`
 Request: `{"patient_code": "MV-7K3QH9TZ", "date_of_birth": "2002-04-15"}`
@@ -83,7 +85,7 @@ Request: `{"full_name": "Ada Example", "date_of_birth": "2002-04-15", "sex_or_ge
 `200` → `[<Patient>, ...]` (empty list when there are no matches)
 
 ### GET `/api/v1/patients/{id}` (staff)
-`200` → `<Patient>` · `404` if unknown
+`200` → `<Patient>` · `404` if unknown · `422` if `{id}` is not a valid UUID
 
 ### RecordEntry object (official record)
 ```json
@@ -104,9 +106,10 @@ Request: `{"full_name": "Ada Example", "date_of_birth": "2002-04-15", "sex_or_ge
 
 ### POST `/api/v1/patients/{id}/visits` (staff)
 Request: `{"visit_date": "2026-10-20", "record_type": "visit_note", "title": "Routine check-up", "details": "..."}`
-- `visit_date` and `title` required. `record_type` defaults to `visit_note`. `details` optional (max 5000 chars).
+- `visit_date` (required, not in the future) and `title` (required, max 200) · `record_type` defaults to `visit_note`;
+  allowed: `visit_note`, `diagnosis`, `prescription`, `lab_result` (`external_import` is reserved, 422) · `details` optional (max 5000 chars).
 
-`201` → `<RecordEntry>` · `404` unknown patient
+`201` → `<RecordEntry>` · `404` unknown patient · `403` with a patient token
 
 ### GET `/api/v1/patients/{id}/records` (staff) and GET `/api/v1/patients/me/records` (patient)
 `200` → `[<RecordEntry>, ...]` newest `visit_date` first. **Official entries only**: pending or rejected
@@ -145,7 +148,9 @@ external records never appear here.
 ### POST `/api/v1/patients/me/external-records` (patient, multipart/form-data)
 Fields: `file` (required; PDF, PNG or JPEG; max 5 MB), and the optional text fields `source_facility`, `document_date`
 (`YYYY-MM-DD`), `document_type`, `notes`.
-`201` → `<ExternalRecord>` with `review_status: "pending_review"` · `413` too large · `415` wrong type
+`201` → `<ExternalRecord>` with `review_status: "pending_review"` · `413` too large · `415` not PDF/PNG/JPEG
+(checked from the file contents, not the extension) · `422` empty file or bad `document_date` (must be `YYYY-MM-DD`, not in the future).
+Uploading **is** submitting for review; there is no separate draft step. Filenames are sanitised for display.
 
 ### GET `/api/v1/patients/me/external-records` (patient)
 `200` → `[<ExternalRecord>, ...]` newest first (only the signed-in patient's own uploads)

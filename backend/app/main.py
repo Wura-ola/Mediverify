@@ -6,9 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import CORS_ORIGINS
 from app.db import Base, engine
-from app.routers import health
+from app import models  # noqa: F401  (registers tables for create_all)
+from app.routers import auth, external_records, health, patients
 
 log = logging.getLogger("medverify")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,3 +39,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(external_records.patient_router)
+app.include_router(external_records.staff_router)
+app.include_router(patients.router)
